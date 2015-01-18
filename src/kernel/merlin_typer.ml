@@ -45,6 +45,7 @@ type step = {
   ppx_cookie : Ast_mapper.cache;
   snapshot   : Btype.snapshot;
   env        : Env.t;
+  typemap    : Printtyp.typemap;
   contents   : [`Str of Typedtree.structure | `Sg of Typedtree.signature] list;
   exns       : exn list;
 }
@@ -58,7 +59,9 @@ let empty extensions catch  =
   let ppx_cookie = !Ast_mapper.cache in
   { raw = Raw_typer.empty;
     contents = [];
-    ppx_cookie; snapshot; env; exns }
+    ppx_cookie; snapshot; env; exns;
+    typemap = Printtyp.fresh_typemap env;
+  }
 
 (* Rewriting:
    - internal, to turn partial ASTs into valid OCaml AST chunks
@@ -146,7 +149,8 @@ let append catch loc item step =
     Typecore.reset_delayed_checks ();
     {env; contents; snapshot; ppx_cookie;
      raw = step.raw;
-     exns = caught catch @ step.exns}
+     exns = caught catch @ step.exns;
+     typemap = Printtyp.update_typemap env step.typemap}
   with exn ->
     let snapshot = Btype.snapshot () in
     Typecore.reset_delayed_checks ();
@@ -257,6 +261,7 @@ let update parser t =
 let env t      = (get_value t).env
 let exns t     = (get_value t).exns
 let contents t = (get_value t).contents
+let typemap t  = (get_value t).typemap
 let extensions t = t.state.extensions
 
 let is_valid t =

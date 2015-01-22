@@ -41,4 +41,4 @@ val extensions : t -> Extension.set
 val dump : Format.formatter -> t -> unit
 
 val with_typer : t -> (unit -> 'a) -> 'a
-val typemap : t -> Printtyp.typemap
+val typemap : ?from:Env.t -> t -> Printtyp.typemap

@@ -29,6 +29,7 @@
 type cmi_item = {
   cmi_infos: Cmi_format.cmi_infos;
   cmi_typemap: (Path.t list Path.PathMap.t * Path.t list Path.PathMap.t) option ref;
+  mutable cmi_env_cache: exn;
 }
 
 include File_cache.Make (struct
@@ -36,5 +37,6 @@ include File_cache.Make (struct
   let read name = {
     cmi_infos = Cmi_format.read_cmi name;
     cmi_typemap = ref None;
+    cmi_env_cache = Not_found;
   }
 end)

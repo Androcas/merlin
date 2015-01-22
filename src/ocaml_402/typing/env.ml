@@ -357,17 +357,25 @@ let check_consistency ps =
 
 (* Reading persistent structures from .cmi files *)
 
+exception Cmi_component_cache of module_components
+
 let read_pers_struct modname filename =
-  let {Cmi_cache. cmi_infos = cmi; cmi_typemap = typemap} =
-    Cmi_cache.read filename in
+  let cmi_entry = Cmi_cache.read filename in
+  let {Cmi_cache. cmi_infos = cmi; cmi_typemap = typemap} = cmi_entry in
   let name = cmi.cmi_name in
   let sign = cmi.cmi_sign in
   let crcs = cmi.cmi_crcs in
   let flags = cmi.cmi_flags in
-  let comps =
-      !components_of_module' empty Subst.identity
-                             (Pident(Ident.create_persistent name))
-                             (Mty_signature ~:sign)
+  let comps = match cmi_entry.Cmi_cache.cmi_env_cache with
+    | Cmi_component_cache comps -> comps
+    | _ ->
+      let comps =
+        !components_of_module' empty Subst.identity
+          (Pident(Ident.create_persistent name))
+          (Mty_signature ~:sign)
+      in
+      cmi_entry.Cmi_cache.cmi_env_cache <- Cmi_component_cache comps;
+      comps
   in
   let ps = { ps_name = name;
              ps_sig = sign;

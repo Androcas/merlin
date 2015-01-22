@@ -28,7 +28,7 @@
 
 type cmi_item = {
   cmi_infos: Cmi_format.cmi_infos;
-  cmi_typemap: (Path.t list Path.PathMap.t option) ref;
+  cmi_typemap: (Path.t list Path.PathMap.t * Path.t list Path.PathMap.t) option ref;
 }
 
 include File_cache.Make (struct

@@ -26,15 +26,18 @@
 
 )* }}} *)
 
-type t
+open Std
 
-val fresh : Merlin_parser.t -> t
+type t = (int * Merlin_parser.t Location.loc) zipper
 
-val fold : Merlin_lexer.item -> t -> t
+val from_parser : endp:Lexing.position -> Merlin_parser.t -> t
 
-val parser : t -> Merlin_parser.t
+val feed_normal :
+  Lexing.position * Merlin_parser.Values.token * Lexing.position ->
+  Merlin_parser.t -> [ `Reject of Merlin_parser.t | `Step of Merlin_parser.t ]
 
-val exns : t -> exn list
+val feed_recover :
+  Lexing.position * Merlin_parser.Values.token * Lexing.position ->
+  t -> (t, Merlin_parser.t) either
 
 val dump : t -> Std.json
-val dump_recoverable : t -> Std.json

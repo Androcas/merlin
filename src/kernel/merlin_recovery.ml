@@ -29,12 +29,14 @@
 open Std
 open Raw_parser
 
-let section = Logger.section "recover"
+let section = Logger.section "recovery"
+
+type t = (int * Merlin_parser.t Location.loc) zipper
 
 let candidate_pos (_,{Location.txt = _; loc}) =
   Lexing.split_pos loc.Location.loc_start
 
-let rollbacks endp parser =
+let from_parser ~endp parser =
   let locate parser =
     let loc = Merlin_parser.get_location parser in
     Location.mkloc parser loc
@@ -64,20 +66,7 @@ let rollbacks endp parser =
   in
   Zipper.of_list stacks
 
-type t = {
-  errors: exn list;
-  parser: Merlin_parser.t;
-  recovering: ((int * Merlin_parser.t Location.loc) zipper) option;
-}
-
-let parser t = t.parser
-let exns t = t.errors
-
-let fresh parser = {errors = []; parser; recovering = None}
-
-let dump_recovering = function
-  | None -> `Null
-  | Some (Zipper (head, _, tail)) ->
+let dump (Zipper (head, _, tail)) =
     let dump_snapshot (priority,{Location. txt = parser; loc}) =
       let guide = loc.Location.loc_start in
       let line, col = Lexing.split_pos guide in
@@ -92,18 +81,6 @@ let dump_recovering = function
       "tail", `List (List.map ~f:dump_snapshot tail);
     ]
 
-let dump t = `Assoc [
-    "parser", Merlin_parser.dump t.parser;
-    "recovery", dump_recovering t.recovering;
-  ]
-
-let dump_recoverable t =
-  let t = match t.recovering with
-    | Some _ -> t
-    | None -> {t with recovering = Some (rollbacks Lexing.dummy_pos t.parser)}
-  in
-  dump t
-
 let token_to_string tok =
   let open Merlin_parser.Values in
   string_of_class (class_of_symbol (symbol_of_token tok))
@@ -116,23 +93,6 @@ let dump_candidate (priority,{Location. txt = parser; loc}) =
     "guide", `List [`Int line; `Int col];
     "parser", Merlin_parser.dump parser
   ]
-
-let rec feed_normal (s,tok,e as input) parser =
-  let dump_token token = `Assoc [
-      "token", `String (token_to_string token)
-    ]
-  in
-  match Merlin_parser.feed input parser with
-  | `Accept _ ->
-    Logger.debugjf section ~title:"feed_normal accepted" dump_token tok;
-    assert (tok = EOF);
-    feed_normal (s,SEMISEMI,e) parser
-  | (`Reject _ as result) ->
-    Logger.debugjf section ~title:"feed_normal rejected" dump_token tok;
-    result
-  | (`Step parser as result) ->
-    Logger.debugjf section ~title:"feed_normal step" dump_token tok;
-    result
 
 let closing_token = function
   | END -> true
@@ -155,8 +115,24 @@ let prepare_candidates ref_col candidates =
   in
   List.stable_sort ~cmp candidates
 
+let rec feed_normal (s,tok,e as input) parser =
+  let dump_token token = `Assoc [
+      "token", `String (token_to_string token)
+    ]
+  in
+  match Merlin_parser.feed input parser with
+  | `Accept _ ->
+    Logger.debugjf section ~title:"feed_normal accepted" dump_token tok;
+    assert (tok = EOF);
+    feed_normal (s,SEMISEMI,e) parser
+  | (`Reject _ as result) ->
+    Logger.debugjf section ~title:"feed_normal rejected" dump_token tok;
+    result
+  | (`Step parser as result) ->
+    Logger.debugjf section ~title:"feed_normal step" dump_token tok;
+    result
 
-let feed_recover original (s,tok,e as input) zipper =
+let feed_recover (s,tok,e as input) zipper =
   let _, ref_col = Lexing.split_pos s in
   let get_col candidate = snd (candidate_pos candidate) in
   (* Find appropriate recovering position *)
@@ -203,44 +179,3 @@ let feed_recover original (s,tok,e as input) zipper =
 
   in
   aux_feed 0 candidates
-
-let fold warnings token t =
-  match token with
-  | Merlin_lexer.Error _ -> t
-  | Merlin_lexer.Valid (s,tok,e) ->
-    let s,e = match tok with
-      | EOF -> let pos = {e with Lexing.
-                              pos_lnum = e.Lexing.pos_lnum + 1;
-                              pos_cnum = e.Lexing.pos_bol} in
-        pos, pos
-      | _ -> s, e in
-    warnings := [];
-    let pop w = let r = !warnings in w := []; r in
-    let recover_from t recovery =
-      match feed_recover t.parser (s,tok,e) recovery with
-      | Either.L recovery ->
-        {t with recovering = Some recovery}
-      | Either.R parser ->
-        {t with parser; recovering = None}
-    in
-    match t.recovering with
-    | Some recovery -> recover_from t recovery
-    | None ->
-      begin match feed_normal (s,tok,e) t.parser with
-        | `Reject invalid_parser ->
-          let recovery = rollbacks e t.parser in
-          Logger.infojf section ~title:"entering recovery"
-            dump_recovering (Some recovery);
-          let error = Error_classifier.from invalid_parser (s,tok,e) in
-          recover_from
-            {t with errors = error :: (pop warnings) @ t.errors}
-            recovery
-        | `Step parser ->
-          {t with errors = (pop warnings) @ t.errors; parser }
-      end
-
-let fold token t =
-  let warnings = ref [] in
-  Parsing_aux.catch_warnings warnings
-    (fun () -> fold warnings token t)
-

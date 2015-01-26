@@ -439,7 +439,7 @@ let dispatch (state : state) =
       let recoveries = Buffer.recover_history state.buffer in
       let diff = ref None in
       let check_item (lex_item,recovery) =
-        let parser = Recover.parser recovery in
+        let parser = Driver.parser recovery in
         let result = Parser.has_marker ?diff:!diff parser mark in
         diff := Some (parser,result);
         not result
@@ -541,7 +541,7 @@ let dispatch (state : state) =
     end
 
   | (Dump `Parser : a request) ->
-    Merlin_recover.dump (Buffer.recover state.buffer);
+    Driver.dump (Buffer.recover state.buffer);
 
   | (Dump `Typer_input : a request) ->
     with_typer state @@ fun typer ->
@@ -550,7 +550,7 @@ let dispatch (state : state) =
     `String (to_string ())
 
   | (Dump `Recover : a request) ->
-    Merlin_recover.dump_recoverable (Buffer.recover state.buffer);
+    Driver.dump_recoverable (Buffer.recover state.buffer);
 
   | (Dump (`Env (kind, pos)) : a request) ->
     with_typer state @@ fun typer ->

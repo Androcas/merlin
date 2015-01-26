@@ -38,7 +38,8 @@ open Misc
 module Lexer  = Merlin_lexer
 module Parser = Merlin_parser
 module Typer  = Merlin_typer
-module Recover = Merlin_recover
+module Recovery = Merlin_recovery
+module Driver = Merlin_parser_driver
 
 (* Project configuration *)
 module Project : sig
@@ -420,7 +421,7 @@ end = struct
     Cmi_cache.flush ();
 end
 
-let wisdow = Merlin_student.Learner.fresh ()
+let wisdom = Merlin_student.Learner.fresh ()
 
 module Buffer : sig
   type t
@@ -435,8 +436,8 @@ module Buffer : sig
 
   val parser: t -> Parser.t
   val parser_errors: t -> exn list
-  val recover: t -> Recover.t
-  val recover_history : t -> (Lexer.item * Recover.t) History.t
+  val recover: t -> Driver.t
+  val recover_history : t -> (Lexer.item * Driver.t) History.t
 
   val typer: t -> Typer.t
 
@@ -458,7 +459,7 @@ end = struct
     mutable stamp : bool ref;
     mutable keywords: Lexer.keywords;
     mutable lexer: (exn list * Lexer.item) History.t;
-    mutable recover: (Lexer.item * Recover.t) History.t;
+    mutable recover: (Lexer.item * Driver.t) History.t;
     mutable typer: Typer.t;
   }
 
@@ -473,7 +474,7 @@ end = struct
       | Lexer.Valid (s,t,e) -> s,t,e
       | _ -> assert false
     in
-    (token, Recover.fresh (Parser.from kind input))
+    (token, Driver.from_parser (Parser.from kind input))
 
   let autoreload_dot_merlin buffer =
     let path = Option.bind buffer.path Dot_merlin.find in
@@ -531,8 +532,8 @@ end = struct
   let lexer_errors b = fst (History.focused b.lexer)
   let recover_history b = b.recover
   let recover b = snd (History.focused b.recover)
-  let parser b = Recover.parser (recover b)
-  let parser_errors b = Recover.exns (recover b)
+  let parser b = Driver.parser (recover b)
+  let parser_errors b = Driver.exns (recover b)
 
   let typer b =
     setup b;
@@ -553,7 +554,7 @@ end = struct
     let strong_check (_,token) (token',_) = token == token' in
     let weak_check (_,token) (token',_) = Lexer.equal token token' in
     let init token = initial_step t.kind token in
-    let strong_fold (_,token) (_,recover) = token, Recover.fold token recover in
+    let strong_fold (_,token) (_,recover) = token, Driver.step token recover in
     let weak_update (_,token) (_,recover) = (token,recover) in
     let recover', updated = History.sync t.lexer (Some t.recover)
         ~init ~strong_check ~strong_fold ~weak_check ~weak_update; in
@@ -598,6 +599,8 @@ end = struct
     List.remove t.unit_name (Project.global_modules t.project)
 
   let learn t =
-    Merlin_student.Learner.learn wisdow
-      ~from:(History.seek_backward (fun _ -> true) t.recover)
+    Merlin_student.Learner.learn wisdom
+      (History.seek_backward (fun _ -> true) t.recover)
+      (fun (_i,r) -> Driver.parser r)
+      (fun (i,_r) -> i)
 end

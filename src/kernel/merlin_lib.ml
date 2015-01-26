@@ -420,6 +420,8 @@ end = struct
     Cmi_cache.flush ();
 end
 
+let wisdow = Merlin_student.Learner.fresh ()
+
 module Buffer : sig
   type t
   val create: ?path:string -> Parser.state -> t
@@ -445,6 +447,8 @@ module Buffer : sig
 
   (* All top modules of current project, with current module removed *)
   val global_modules: t -> string list
+
+  val learn : t -> unit
 end = struct
   type t = {
     kind: Parser.state;
@@ -592,4 +596,8 @@ end = struct
   let global_modules t =
     setup t;
     List.remove t.unit_name (Project.global_modules t.project)
+
+  let learn t =
+    Merlin_student.Learner.learn wisdow
+      ~from:(History.seek_backward (fun _ -> true) t.recover)
 end

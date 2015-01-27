@@ -255,6 +255,9 @@ let rec normalize_type_path ?(cache=false) env p =
 let penality id =
   if id <> "" && id.[0] = '_' then 10 else 1
 
+let to_str path = String.concat "." (Path.to_string_list path) ^ "/" ^
+                  (string_of_int (Ident.binding_time (Path.head path)))
+
 let rec path_size n ofun afun = function
     Pident id ->
     n + penality (Ident.name id), -Ident.binding_time id
@@ -491,6 +494,9 @@ let set_printing_typemap { am_env; am_map; am_open } =
           let union aliases (_,aliases') = pathmap_append aliases' aliases in
           List.fold_left union PathMap.empty maps
         in
+        PathMap.iter (fun p _ ->
+            Printf.eprintf "REGISTERED %s\n%!" (to_str p)
+          ) module_alias';
         let rec select_alias paths = lazy
           begin
             let best_module_path = best_path opened aliased in
@@ -500,16 +506,26 @@ let set_printing_typemap { am_env; am_map; am_open } =
                 paths
             in
             let path = shorten_path' opened aliased path in
-            let to_str path = String.concat "." (Path.to_string_list path) in
             Printf.eprintf "SELECTED %s AMONG %s\n%!"
               (to_str path) (String.concat ", " (List.map to_str paths));
             path, n
           end
         and module_alias = lazy (PathMap.map select_alias module_alias')
         and aliased p =
-          let p = Env.normalize_path None am_env p in
-          try Some (Lazy.force (PathMap.find p (Lazy.force module_alias)))
-          with Not_found  -> None
+          let p' = Env.normalize_path None am_env p in
+          Printf.eprintf "ALIAS FOR %s = %s? (in %d aliases)\n%!"
+            (to_str p)
+            (to_str p')
+            (PathMap.cardinal module_alias');
+          match PathMap.find p' (Lazy.force module_alias) with
+          | exception Not_found ->
+            Printf.eprintf "\tNO\n%!";
+            None
+          | result ->
+            Printf.eprintf "\tYES\n%!";
+            let lazy result = result in
+            Printf.eprintf "\tALIASING TO %s\n%!" (to_str (fst result));
+            Some result
         in
         let final = ref PathMap.empty in
         let type_alias = function

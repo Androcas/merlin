@@ -260,23 +260,22 @@ module Make(Ord: OrderedType) = struct
 
     let rec union f s1 s2 =
       match (s1, s2) with
-      | (s1, Empty) -> s1
-      | (Empty, s2) -> s2
+      | (s, Empty) | (Empty, s) -> s
       | (Node (l1, v1, d1, r1, h1), Node (_, _, _, _, h2)) when h1 >= h2 ->
           let (l2, d2, r2) = split v1 s2 in
-          let l =  union f l1 l2 in
-          let r =  union f r1 r2 in
+          let l = union f l1 l2 in
+          let r = union f r1 r2 in
           begin match d2 with
             | Some d2 -> join l v1 (f v1 d1 d2) r
-            | None -> concat l r
+            | None -> join l v1 d1 r
           end
-      | (_, Node (l2, v2, d2, r2, h2)) ->
+      | (_, Node (l2, v2, d2, r2, _)) ->
           let (l1, d1, r1) = split v2 s1 in
-          let l =  union f l1 l2 in
-          let r =  union f r1 r2 in
+          let l = union f l1 l2 in
+          let r = union f r1 r2 in
           begin match d1 with
             | Some d1 -> join l v2 (f v2 d1 d2) r
-            | None -> concat l r
+            | None -> join l v2 d2 r
           end
 
     let rec merge f s1 s2 =

@@ -65,19 +65,18 @@ let is_recovered = function
   | _ -> false
 
 (** Heuristic to find suitable environment to complete / type at given position.
- *  1. Try to find environment near given cursor.
- *  2. Check if there is an invalid construct between found env and cursor :
- *    Case a.
- *      > let x = valid_expr ||
- *      The env found is the right most env from valid_expr, it's a correct
- *      answer.
- *    Case b.
- *      > let x = valid_expr
- *      > let y = invalid_construction||
- *      In this case, the env found is the same as in case a, however it is
- *      preferable to use env from enclosing module rather than an env from
- *      inside x definition.
- *)
+    1. Try to find environment near given cursor.
+    2. Check if there is an invalid construct between found env and cursor :
+      Case a.
+        > let x = valid_expr ||
+        The env found is the right most env from valid_expr, it's a correct
+        answer.
+      Case b.
+        > let x = valid_expr
+        > let y = invalid_construction||
+        In this case, the env found is the same as in case a, however it is
+        preferable to use env from enclosing module rather than an env from
+        inside x definition.  *)
 let node_at ?(skip_recovered=false) typer pos_cursor =
   let structures = Typer.contents typer in
   let structures = Browse.of_typer_contents structures in

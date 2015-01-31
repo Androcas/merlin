@@ -639,6 +639,9 @@ let dispatch (state : state) =
     List.iter (function
         | `Sg sg -> Printtyped.interface ppf sg
         | `Str str -> Printtyped.implementation ppf str
+        | `Fail (_,loc) ->
+          Format.fprintf ppf "<failed to type at %a>\n"
+            Location.print loc
       ) (Typer.contents typer);
     `String (to_string ())
 
